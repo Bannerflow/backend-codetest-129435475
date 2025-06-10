@@ -5,7 +5,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="Models\" />
+    <Compile Remove="Models\**" />
+    <EmbeddedResource Remove="Models\**" />
+    <None Remove="Models\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PortfolioService.Infrastructure\PortfolioService.Infrastructure.csproj" />
+    <ProjectReference Include="..\StockService\StockService.csproj" />
   </ItemGroup>
 
 </Project>
