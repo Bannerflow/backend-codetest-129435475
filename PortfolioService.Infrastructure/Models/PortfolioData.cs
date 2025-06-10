@@ -2,7 +2,7 @@
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
-namespace PortfolioService.Infrastructure.Models
+namespace CodeTest.Infrastructure.Models
 {
     public class PortfolioData
     {
@@ -10,9 +10,6 @@ namespace PortfolioService.Infrastructure.Models
         public ObjectId Id { get; set; }
         [BsonElement("currentTotalValue")]
         public float CurrentTotalValue { get; set; }
-        [BsonElement("deleted")]
-        public bool Deleted { get; set; } = false;
-
         [BsonElement("stocks")]
         public ICollection<StockData> Stocks { get; set; }
     }

@@ -1,64 +1,90 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Net.Http;
+using CodeTest.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
 using MongoDB.Bson;
-using System.Threading.Tasks;
-using PortfolioService.Core.Handlers;
+using System.Text.Json;
 
-namespace PortfolioService.Api.Controllers
+namespace CodeTest.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
     public class PortfolioController : ControllerBase
     {
-        private readonly PortfolioHandler _portfolioHandler;
+        private readonly DataService _dataService;
 
-        public PortfolioController(PortfolioHandler portfolioHandler)
+        private class Quote
         {
-            _portfolioHandler = portfolioHandler ?? throw new ArgumentNullException(nameof(portfolioHandler));
+            public bool success { get; set; }
+            public string terms { get; set; }
+            public string privacy { get; set; }
+            public int timestamp { get; set; }
+            public string source { get; set; }
+            public Dictionary<string, decimal> quotes { get; set; }
         }
 
-        /// <summary>
-        /// Gets the portfolio details by ID.
-        /// </summary>
-        /// <param name="id">The ID of the portfolio</param>
-        /// <returns>Portfolio details</returns>
-        [HttpGet("{id}")]
-        public async Task<IActionResult> Get(string id)
+        public PortfolioController()
         {
-            if (!ObjectId.TryParse(id, out var objectId)) {
-                return BadRequest("Invalid portfolio ID format.");
-            }
-            var portfolio = await _portfolioHandler.GetPortfolioAsync(objectId);
+            _dataService = new DataService();
+        }
+
+        [HttpGet("{id}")]
+        public IActionResult Get(string id)
+        {
+            var portfolio = _dataService.GetPortfolio(ObjectId.Parse(id)).Result;
             return Ok(portfolio);
         }
 
-        /// <summary>
-        /// Gets the combined value of all stocks in the portfolio in the specified currency.
-        /// </summary>
-        /// <param name="id">The ID of the portfolio</param>
-        /// <param name="currency"> The currency to convert the total value into (default is USD)</param>
-        /// <returns>Total value of the portfolio</returns>
-        [HttpGet("{id}/value")]
-        public async Task<IActionResult> GetTotalPortfolioValue(string id, string currency = "USD")
+        [HttpGet("/value")]
+        public IActionResult GetTotalPortfolioValue(string portfolioId, string currency = "USD")
         {
-            if (!ObjectId.TryParse(id, out var objectId)) {
-                return BadRequest("Invalid portfolio ID format.");
+            var portfolio = _dataService.GetPortfolio(ObjectId.Parse(portfolioId)).Result;
+            var totalAmount = 0m;
+            var stockService = new StockService.StockService();
+            var apiAccessKey = "edcbcd5977de259ca7fb25077ca8a0f6";
+            using (var httpClient = new HttpClient {BaseAddress = new Uri("http://api.currencylayer.com/")})
+            {
+                // See https://currencylayer.com/documentation for details about the api
+                var foo = httpClient.GetAsync($"live?access_key={apiAccessKey}").Result;
+                var data = JsonSerializer.DeserializeAsync<Quote>(foo.Content.ReadAsStream()).Result;
+
+                foreach (var stock in portfolio.Stocks)
+                {
+                    if (stock.BaseCurrency == currency)
+                    {
+                        totalAmount += stockService.GetCurrentStockPrice(stock.Ticker).Result.Price *
+                                       stock.NumberOfShares;
+                    }
+                    else
+                    {
+                        if (currency == "USD")
+                        {
+                            var stockPrice = stockService.GetCurrentStockPrice(stock.Ticker).Result.Price;
+                            var rateUsd = data.quotes["USD" + stock.BaseCurrency];
+                            totalAmount += stockPrice /rateUsd * stock.NumberOfShares;
+                        }
+                        else
+                        {
+                            var stockPrice = stockService.GetCurrentStockPrice(stock.Ticker).Result.Price;
+                            var rateUsd = data.quotes["USD" + stock.BaseCurrency];
+                            var amount = stockPrice / rateUsd * stock.NumberOfShares;
+                            var targetRateUsd = data.quotes["USD" + currency];
+                            totalAmount += amount * targetRateUsd;
+                        }
+                    }
+                }
             }
-            var totalAmount = await _portfolioHandler.GetPortfolioValueAsync(objectId, currency);
+
             return Ok(totalAmount);
         }
 
-        /// <summary>
-        /// Soft deletes the portfolio by ID.
-        /// </summary>
-        /// <param name="id">The ID of the portfolio</param>
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> DeletePortfolio(string id)
+        [HttpGet("/delete")]
+        public IActionResult DeletePortfolio(string portfolioId)
         {
-            if (!ObjectId.TryParse(id, out var objectId)) {
-                return BadRequest("Invalid portfolio ID format.");
-            }
-            await _portfolioHandler.DeletePortfolioAsync(objectId);
+            var dataService = new DataService();
+            dataService.DeletePortfolio(ObjectId.Parse(portfolioId));
             return Ok();
         }
     }

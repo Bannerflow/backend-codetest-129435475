@@ -9,7 +9,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\PortfolioService.Core\PortfolioService.Core.csproj" />
     <ProjectReference Include="..\PortfolioService.Infrastructure\PortfolioService.Infrastructure.csproj" />
     <ProjectReference Include="..\StockService\StockService.csproj" />
   </ItemGroup>

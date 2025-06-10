@@ -1,23 +1,25 @@
-﻿using System;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
+using CodeTest.Infrastructure.Models;
+using Mongo2Go;
 using MongoDB.Bson;
 using MongoDB.Driver;
-using PortfolioService.Infrastructure.Models;
 
-namespace PortfolioService.Infrastructure.Persistence
+namespace CodeTest.Infrastructure.Persistence
 {
-    public class DataService : IDataService
+    public class DataService
     {
-        protected IMongoCollection<PortfolioData> _portfolioCollection;
+        private readonly IMongoCollection<PortfolioData> _portfolioCollection;
+        private static readonly MongoDbRunner _runner = MongoDbRunner.Start();
 
-        public DataService(IMongoCollection<PortfolioData> portfolioCollection) 
+        static DataService()
         {
-            _portfolioCollection = portfolioCollection ?? throw new ArgumentNullException(nameof(portfolioCollection));
+            _runner.Import("portfolioServiceDb", "Portfolios", @"..\..\..\..\scripts\portfolios.json", true);
         }
 
         public DataService()
         {
-            // Default constructor for dependency injection or testing purposes
+            var client = new MongoClient(_runner.ConnectionString);
+            _portfolioCollection = client.GetDatabase("portfolioServiceDb").GetCollection<PortfolioData>("Portfolios");
         }
 
         public async Task<PortfolioData> GetPortfolio(ObjectId id)
@@ -29,10 +31,7 @@ namespace PortfolioService.Infrastructure.Persistence
 
         public async Task DeletePortfolio(ObjectId id)
         {
-            await _portfolioCollection.UpdateOneAsync(
-                Builders<PortfolioData>.Filter.Eq(portfolio => portfolio.Id, id),
-                Builders<PortfolioData>.Update.Set(p => p.Deleted, true)
-            );
+            await _portfolioCollection.DeleteOneAsync(Builders<PortfolioData>.Filter.Eq(portfolio => portfolio.Id, id));
         }
     }
 }
